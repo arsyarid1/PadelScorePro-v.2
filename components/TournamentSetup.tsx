@@ -46,13 +46,20 @@ const GAME_CATEGORIES = [
     icon: <Building2 className="size-4" />,
     description: 'Inter-club battle for ultimate bragging rights.',
     types: ['Club Americano', 'Club Mexicano', 'Club Fix Americano'] as GameType[]
+  },
+  {
+    id: 'professional',
+    name: 'Professional',
+    icon: <Trophy className="size-4" />,
+    description: 'Elite knockout tournament with fixed partners.',
+    types: ['Professional Tournament'] as GameType[]
   }
 ];
 
 const TournamentSetup: React.FC<TournamentSetupProps> = ({ onStart }) => {
   const [name, setName] = useState('New Padel Cup');
   const [type, setType] = useState<GameType>('Americano');
-  const [activeCategory, setActiveCategory] = useState<'americano' | 'mexicano' | 'club'>('americano');
+  const [activeCategory, setActiveCategory] = useState<'americano' | 'mexicano' | 'club' | 'professional'>('americano');
   const [scoring, setScoring] = useState<ScoringFormat>('Rally Points');
   const [customMatchType, setCustomMatchType] = useState<CustomMatchType>('Race to');
   const [tennisRule, setTennisRule] = useState<TennisRule>('Advantage');
@@ -102,7 +109,8 @@ const TournamentSetup: React.FC<TournamentSetupProps> = ({ onStart }) => {
     'Mexicano Fix': 'Fixed partners for the entire session. Teams are paired based on their total Power Ranking.',
     'Club Americano': 'Random partners within the same club. Matches are always Club vs Club. Partners rotate.',
     'Club Mexicano': 'Power Ranking pairing within the club. Matches are always Club vs Club.',
-    'Club Fix Americano': 'Fixed partners within the club. Matches are always Club vs Club.'
+    'Club Fix Americano': 'Fixed partners within the club. Matches are always Club vs Club.',
+    'Professional Tournament': 'Knockout system with fixed partners. Bracket-style progression from Round of 16 to Final.'
   };
 
   const scoringDescriptions: Record<ScoringFormat, string> = {

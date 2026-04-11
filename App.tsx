@@ -12,7 +12,23 @@ import AdminDashboard from './components/AdminDashboard';
 import SpectatorView from './components/SpectatorView';
 import ShortcodeEntry from './components/ShortcodeEntry';
 import SuperAdmin from './components/SuperAdmin';
-import { generateMatches, shuffle, generateRandomRound, generateMexicanoRound, generateRandomMixRound, generateMexicanoMixRound, generateAmericanoMixRound, generateAmericanoFixRound, generateMexicanoFixRound, generateClubRandomRound, generateClubMexicanoRound, generateClubFixAmericanoRound } from './utils/gameLogic';
+import { 
+  generateMatches, 
+  shuffle, 
+  generateRandomRound, 
+  generateMexicanoRound, 
+  generateRandomMixRound, 
+  generateMexicanoMixRound, 
+  generateAmericanoMixRound, 
+  generateAmericanoFixRound, 
+  generateMexicanoFixRound, 
+  generateClubRandomRound, 
+  generateClubMexicanoRound, 
+  generateClubFixAmericanoRound,
+  generateKnockoutBracket,
+  suggestNextMatchesAdvanced,
+  suggestClubMatchBalanced
+} from './utils/gameLogic';
 import { getAvatarUrl } from './utils/avatar';
 import { tournamentService } from './services/tournamentService';
 
@@ -233,12 +249,23 @@ const App: React.FC = () => {
       matches = generateAmericanoMixRound(setup.players, setup.courts, 1);
     } else if (setup.type === 'Club Americano' || setup.type === 'Club Mexicano' || setup.type === 'Club Fix Americano') {
       matches = generateMatches(setup.players, setup.type, 1, setup.clubs);
+    } else if (setup.type === 'Professional Tournament') {
+      const bracket = generateKnockoutBracket(setup.players);
+      // First round matches are the ones to start with
+      matches = bracket.rounds[0].matches;
     } else {
       matches = generateMatches(setup.players, setup.type, 1);
     }
 
-    for (let i = 0; i < Math.min(setup.courts, matches.length); i++) {
-      matches[i].status = 'live';
+    if (setup.type === 'Professional Tournament') {
+      // For Professional Tournament, we don't set all to live immediately, maybe just the first few
+      for (let i = 0; i < Math.min(setup.courts, matches.length); i++) {
+        matches[i].status = 'live';
+      }
+    } else {
+      for (let i = 0; i < Math.min(setup.courts, matches.length); i++) {
+        matches[i].status = 'live';
+      }
     }
     
     const newTournament: Tournament = {
@@ -250,7 +277,16 @@ const App: React.FC = () => {
       tennisRule: setup.tennisRule,
       maxPoints: setup.maxPoints,
       courts: setup.courts,
-      players: setup.players.map((p: any) => ({ ...p, points: 0, matchesPlayed: 0, wins: 0, winRate: 0 })),
+      players: setup.players.map((p: any) => ({ 
+        ...p, 
+        points: 0, 
+        matchesPlayed: 0, 
+        wins: 0, 
+        winRate: 0,
+        consecutiveMatches: 0,
+        lastPartnerIds: [],
+        opponentIds: []
+      })),
       clubs: setup.clubs,
       matches: matches,
       currentMatchId: matches[0]?.id,
@@ -258,7 +294,8 @@ const App: React.FC = () => {
       isCloud: setup.isCloud,
       shortcode: setup.shortcode,
       role: 'admin',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      bracket: setup.type === 'Professional Tournament' ? generateKnockoutBracket(setup.players) : undefined
     };
     setActiveTournaments([...activeTournaments, newTournament]);
     setCurrentTournamentId(newTournament.id);
@@ -296,6 +333,7 @@ const App: React.FC = () => {
         } : m);
 
         let updatedPlayers = t.players;
+        let updatedBracket = t.bracket;
         if (status === 'finished' && !isAlreadyFinished) {
           const finishedMatch = updatedMatches.find(m => m.id === matchId)!;
           const teamAPlayers = finishedMatch.teamA.playerIds;
@@ -303,6 +341,34 @@ const App: React.FC = () => {
 
           const isWinnerA = t.scoring === 'Rally Points' ? teamAScore > teamBScore : teamAGames > teamBGames;
           const isWinnerB = t.scoring === 'Rally Points' ? teamBScore > teamAScore : teamBGames > teamAGames;
+
+          // Bracket Progression for Professional Tournament
+          if (t.type === 'Professional Tournament' && updatedBracket) {
+            const finishedMatch = updatedMatches.find(m => m.id === matchId)!;
+            const winnerIds = isWinnerA ? finishedMatch.teamA.playerIds : finishedMatch.teamB.playerIds;
+            
+            if (finishedMatch.nextMatchId) {
+              updatedBracket = {
+                ...updatedBracket,
+                rounds: updatedBracket.rounds.map(r => ({
+                  ...r,
+                  matches: r.matches.map(m => {
+                    if (m.id === finishedMatch.nextMatchId) {
+                      if (finishedMatch.position === 'top') {
+                        return { ...m, teamA: { ...m.teamA, playerIds: winnerIds } };
+                      } else {
+                        return { ...m, teamB: { ...m.teamB, playerIds: winnerIds } };
+                      }
+                    }
+                    return m;
+                  })
+                }))
+              };
+              
+              // Also update updatedMatches if the next match is already in the list
+              // (In Professional Tournament, all matches are pre-generated in the bracket)
+            }
+          }
 
           // Helper to get opponent names
           const getOpponentNames = (opponentIds: string[]) => {
@@ -340,7 +406,10 @@ const App: React.FC = () => {
                 matchesPlayed, 
                 wins: newWins,
                 winRate: Math.round((newWins / matchesPlayed) * 100),
-                matchHistory: [...(p.matchHistory || []), historyEntry]
+                matchHistory: [...(p.matchHistory || []), historyEntry],
+                consecutiveMatches: (p.consecutiveMatches || 0) + 1,
+                lastPartnerIds: teamAPlayers.filter(id => id !== p.id),
+                opponentIds: [...(p.opponentIds || []), ...teamBPlayers]
               };
             }
             if (teamBPlayers.includes(p.id)) {
@@ -370,8 +439,21 @@ const App: React.FC = () => {
                 matchesPlayed, 
                 wins: newWins,
                 winRate: Math.round((newWins / matchesPlayed) * 100),
-                matchHistory: [...(p.matchHistory || []), historyEntry]
+                matchHistory: [...(p.matchHistory || []), historyEntry],
+                consecutiveMatches: (p.consecutiveMatches || 0) + 1,
+                lastPartnerIds: teamBPlayers.filter(id => id !== p.id),
+                opponentIds: [...(p.opponentIds || []), ...teamAPlayers]
               };
+            }
+            // Only reset consecutive matches for players who are NOT currently playing in any other live match
+            const isPlayingElsewhere = updatedMatches.some(m => 
+              m.id !== matchId && 
+              m.status === 'live' && 
+              ([...m.teamA.playerIds, ...m.teamB.playerIds].includes(p.id))
+            );
+            
+            if (!isPlayingElsewhere) {
+              return { ...p, consecutiveMatches: 0 };
             }
             return p;
           });
@@ -391,7 +473,7 @@ const App: React.FC = () => {
           }
         }
 
-        return { ...t, matches: updatedMatches, players: updatedPlayers };
+        return { ...t, matches: updatedMatches, players: updatedPlayers, bracket: updatedBracket };
       }
       return t;
     }));
@@ -477,6 +559,52 @@ const App: React.FC = () => {
       return true;
     }
     return false;
+  };
+
+  const handleGenerateSuggestions = (tournamentId: string) => {
+    setActiveTournaments(prev => prev.map(t => {
+      if (t.id === tournamentId) {
+        let suggestions: Match[] = [];
+        const roundNumber = (t.matches[t.matches.length - 1]?.round || 0) + 1;
+
+        if (t.type.startsWith('Club')) {
+          suggestions = suggestClubMatchBalanced(t.players, t.clubs || [], t.matches, t.courts, roundNumber);
+        } else if (t.type === 'Professional Tournament') {
+          // For Professional Tournament, suggestions come from the bracket
+          if (t.bracket) {
+            const allBracketMatches = t.bracket.rounds.flatMap(r => r.matches);
+            const pendingMatches = allBracketMatches.filter(m => 
+              m.status === 'pending' && 
+              m.teamA.playerIds.length > 0 && 
+              m.teamB.playerIds.length > 0
+            );
+            suggestions = pendingMatches.slice(0, t.courts);
+          }
+        } else {
+          suggestions = suggestNextMatchesAdvanced(t.players, t.matches, t.courts, t.type, roundNumber);
+        }
+
+        return { ...t, suggestedMatches: suggestions };
+      }
+      return t;
+    }));
+  };
+
+  const handleApproveMatch = (tournamentId: string, matchId: string) => {
+    setActiveTournaments(prev => prev.map(t => {
+      if (t.id === tournamentId && t.suggestedMatches) {
+        const matchToApprove = t.suggestedMatches.find(m => m.id === matchId);
+        if (matchToApprove) {
+          const approvedMatch = { ...matchToApprove, status: 'live' as const };
+          return {
+            ...t,
+            matches: [...t.matches, approvedMatch],
+            suggestedMatches: t.suggestedMatches.filter(m => m.id !== matchId)
+          };
+        }
+      }
+      return t;
+    }));
   };
 
   const handleNextMatch = (tournamentId: string) => {
@@ -673,7 +801,14 @@ const App: React.FC = () => {
   }
 
   if (currentView === 'admin' && activeTournament) {
-    return <AdminDashboard tournament={activeTournament} onExit={() => setCurrentView('dashboard')} />;
+    return (
+      <AdminDashboard 
+        tournament={activeTournament} 
+        onExit={() => setCurrentView('dashboard')} 
+        onGenerateSuggestions={handleGenerateSuggestions}
+        onApproveMatch={handleApproveMatch}
+      />
+    );
   }
 
   if (currentView === 'superadmin') {

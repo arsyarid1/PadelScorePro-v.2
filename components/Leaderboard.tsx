@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Tournament, Gender, Player, MatchHistoryEntry } from '../types';
+import TournamentBracket from './TournamentBracket';
 
 interface ScoreDetailModalProps {
   player: Player;
@@ -99,6 +100,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
 
   const sortedPlayers = [...tournament.players].sort((a, b) => b.points - a.points);
   
+  const isProfessional = tournament.type === 'Professional Tournament';
+
   const clubStats = tournament.clubs?.map(club => {
     const clubPlayers = tournament.players.filter(p => p.clubId === club.id);
     const totalPoints = clubPlayers.reduce((sum, p) => sum + p.points, 0);
@@ -302,6 +305,16 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
 
         {/* Table/List section */}
         <section className="flex-1 flex flex-col min-w-0 lg:overflow-y-auto custom-scrollbar pb-20 lg:pb-0">
+          {isProfessional && tournament.bracket ? (
+            <div className="mb-8">
+              <div className="flex flex-col gap-1 md:gap-2 mb-6">
+                <h2 className="text-xl md:text-3xl font-black tracking-tight text-white uppercase italic leading-none">Tournament Bracket</h2>
+                <p className="text-[#9abcb5] text-[10px] md:text-sm">Knockout progression to the championship.</p>
+              </div>
+              <TournamentBracket bracket={tournament.bracket} players={tournament.players} />
+            </div>
+          ) : null}
+
           {isClubMatch && (
             <div className="sticky top-[72px] z-40 flex gap-2 mb-4 p-1 bg-surface-dark/90 backdrop-blur-md rounded-xl border border-white/5 w-fit">
               <button 

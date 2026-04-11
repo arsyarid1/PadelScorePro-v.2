@@ -132,6 +132,20 @@ const DeleteModal: React.FC<{
   );
 };
 
+const COVER_IMAGES = [
+  '1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg', 
+  '9.jpg', '10.jpg', '11.jpg', '12.jpg', '13.jpg', '14.jpg', '15.jpg', '16.jpg'
+];
+
+const getCoverImage = (seed: string) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % COVER_IMAGES.length;
+  return `/cover/${COVER_IMAGES[index]}`;
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ activeTournaments, isSuperAdmin, onResume, onStartNew, onDelete, onOpenAdmin, onLogin, onLogout }) => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -249,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTournaments, isSuperAdmin, 
                     <img 
                       className="w-full h-full object-cover opacity-50" 
                       alt="Global Session" 
-                      src={`/api/cover/random?seed=${t.id}`} 
+                      src={getCoverImage(t.id)} 
                     />
                     <div className="absolute top-3 left-3 z-20 flex gap-2">
                       <span className="bg-primary text-background-dark text-[8px] md:text-[10px] font-black px-1.5 md:px-2 py-0.5 md:py-1 rounded uppercase">Global</span>
@@ -321,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeTournaments, isSuperAdmin, 
                     <img 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                       alt="Session" 
-                      src={`/api/cover/random?seed=${tournament.id}`} 
+                      src={getCoverImage(tournament.id)} 
                     />
                     <div className="absolute top-3 left-3 z-1 flex gap-2">
                       <span className="bg-primary text-background-dark text-[8px] md:text-[10px] font-black px-1.5 md:px-2 py-0.5 md:py-1 rounded tracking-tighter uppercase">Court {displayMatch?.court || 1}</span>

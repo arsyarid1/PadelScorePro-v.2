@@ -78,37 +78,6 @@ async function startServer() {
     }
   });
 
-  app.get("/api/cover/random", (req, res) => {
-    const seed = req.query.seed as string || Math.random().toString();
-    const coverDir = path.join(process.cwd(), "public", "cover");
-    
-    try {
-      if (!fs.existsSync(coverDir)) {
-        return res.status(404).send("Cover directory not found");
-      }
-      const files = fs.readdirSync(coverDir).filter(file => 
-        file.endsWith('.jpg')
-      );
-      if (files.length === 0) {
-        return res.status(404).send("No cover images found");
-      }
-      
-      // Use seed to pick a consistent random file
-      let hash = 0;
-      for (let i = 0; i < seed.length; i++) {
-        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-        hash |= 0; // Convert to 32bit integer
-      }
-      const index = Math.abs(hash) % files.length;
-      const randomFile = files[index];
-      
-      res.sendFile(path.join(coverDir, randomFile));
-    } catch (error) {
-      console.error("Error serving random cover:", error);
-      res.status(500).send("Internal server error");
-    }
-  });
-
   app.post("/api/tournament/create", (req, res) => {
     const tournament = req.body;
     if (!tournament.id) {

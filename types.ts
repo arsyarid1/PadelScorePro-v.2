@@ -1,5 +1,5 @@
 
-export type GameType = 'Americano' | 'Mexicano' | 'Mexicano Mix' | 'Americano Mix' | 'Americano Fix' | 'Mexicano Fix' | 'Club Americano' | 'Club Mexicano' | 'Club Fix Americano';
+export type GameType = 'Americano' | 'Mexicano' | 'Mexicano Mix' | 'Americano Mix' | 'Americano Fix' | 'Mexicano Fix' | 'Club Americano' | 'Club Mexicano' | 'Club Fix Americano' | 'Professional Tournament';
 export type ScoringFormat = 'Tournament Pro' | 'Custom Match' | 'Rally Points' | 'Tennis Classic';
 export type CustomMatchType = 'Race to' | 'Best of' | 'Tournament Pro';
 export type ViewState = 'dashboard' | 'setup' | 'leaderboard' | 'live' | 'shortcode' | 'superadmin';
@@ -34,6 +34,23 @@ export interface Player {
   location: string;
   clubId?: string;
   matchHistory?: MatchHistoryEntry[];
+  // Advanced Matchmaking tracking
+  consecutiveMatches?: number;
+  lastPartnerIds?: string[];
+  opponentIds?: string[];
+}
+
+export interface KnockoutMatch extends Match {
+  nextMatchId?: string;
+  position?: 'top' | 'bottom';
+  stage: 'R16' | 'QF' | 'SF' | 'F';
+}
+
+export interface Bracket {
+  rounds: {
+    name: string;
+    matches: KnockoutMatch[];
+  }[];
 }
 
 export interface Team {
@@ -73,6 +90,8 @@ export interface Tournament {
   createdAt: string;
   isCloud?: boolean; // Flag for tournament mode
   role?: 'admin' | 'spectator';
+  bracket?: Bracket;
+  suggestedMatches?: Match[];
 }
 
 export interface RefereeSession {

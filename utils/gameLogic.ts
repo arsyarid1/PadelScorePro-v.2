@@ -1,5 +1,187 @@
 
-import { Player, Match, GameType } from '../types';
+import { Player, Match, GameType, KnockoutMatch, Bracket } from '../types';
+
+/**
+ * Advanced Matchmaking: Rotation Weight & Dynamic Scheduling
+ */
+export const getAvailablePlayers = (players: Player[], activeMatches: Match[]): Player[] => {
+  const playingPlayerIds = new Set(
+    activeMatches
+      .filter(m => m.status === 'live')
+      .flatMap(m => [...m.teamA.playerIds, ...m.teamB.playerIds])
+  );
+  return players.filter(p => !playingPlayerIds.has(p.id));
+};
+
+export const suggestNextMatchesAdvanced = (
+  players: Player[],
+  activeMatches: Match[],
+  courts: number,
+  type: GameType,
+  roundNumber: number
+): Match[] => {
+  const availablePlayers = getAvailablePlayers(players, activeMatches);
+  const liveMatchCount = activeMatches.filter(m => m.status === 'live').length;
+  const freeCourts = courts - liveMatchCount;
+  
+  if (freeCourts <= 0 || availablePlayers.length < 4) return [];
+
+  const suggestedMatches: Match[] = [];
+  let pool = [...availablePlayers];
+
+  // Sort by Match Count (Fairness Algorithm: Rotation Weight)
+  pool.sort((a, b) => (a.matchesPlayed || 0) - (b.matchesPlayed || 0));
+
+  for (let i = 0; i < freeCourts; i++) {
+    if (pool.length < 4) break;
+
+    // Constraint: No 3 consecutive matches
+    // Filter out players who have played 2 consecutive matches already
+    let candidates = pool.filter(p => (p.consecutiveMatches || 0) < 2);
+    
+    // If not enough candidates, fallback to everyone (though this shouldn't happen with enough players)
+    if (candidates.length < 4) candidates = [...pool];
+
+    // Pick top 4 based on match count
+    const selected = candidates.slice(0, 4);
+    
+    // Remove from pool
+    pool = pool.filter(p => !selected.includes(p));
+
+    // For Americano: Try to find least frequent partners/opponents
+    // For now, we just do a simple pairing, but we could optimize this further
+    const p1 = selected[0];
+    const p2 = selected[1];
+    const p3 = selected[2];
+    const p4 = selected[3];
+
+    suggestedMatches.push({
+      id: 'suggested-' + Math.random().toString(36).substr(2, 9),
+      teamA: { playerIds: [p1.id, p2.id], score: 0, sets: 0, games: 0 },
+      teamB: { playerIds: [p3.id, p4.id], score: 0, sets: 0, games: 0 },
+      status: 'pending',
+      court: liveMatchCount + i + 1,
+      round: roundNumber
+    });
+  }
+
+  return suggestedMatches;
+};
+
+/**
+ * Professional Tournament: Knockout System
+ */
+export const generateKnockoutBracket = (players: Player[]): Bracket => {
+  const numPlayers = players.length;
+  // Assume players are already in teams (fixed partners)
+  // If not, we pair them up by seed
+  const teams = [];
+  for (let i = 0; i < numPlayers; i += 2) {
+    if (players[i] && players[i + 1]) {
+      teams.push({ id: `team-${i/2}`, playerIds: [players[i].id, players[i + 1].id] });
+    }
+  }
+
+  const numTeams = teams.length;
+  let stage: 'R16' | 'QF' | 'SF' | 'F' = 'F';
+  if (numTeams > 8) stage = 'R16';
+  else if (numTeams > 4) stage = 'QF';
+  else if (numTeams > 2) stage = 'SF';
+
+  const rounds: Bracket['rounds'] = [];
+  
+  // Helper to create matches for a stage
+  const createStage = (count: number, currentStage: typeof stage, nextMatches?: KnockoutMatch[]) => {
+    const matches: KnockoutMatch[] = [];
+    for (let i = 0; i < count; i++) {
+      const matchId = `${currentStage}-${i}`;
+      const nextMatch = nextMatches ? nextMatches[Math.floor(i / 2)] : undefined;
+      
+      matches.push({
+        id: matchId,
+        teamA: { playerIds: [], score: 0, sets: 0, games: 0 },
+        teamB: { playerIds: [], score: 0, sets: 0, games: 0 },
+        status: 'pending',
+        court: 0,
+        round: 0,
+        stage: currentStage,
+        nextMatchId: nextMatch?.id,
+        position: i % 2 === 0 ? 'top' : 'bottom'
+      });
+    }
+    return matches;
+  };
+
+  const finalMatches = createStage(1, 'F');
+  const semiMatches = createStage(2, 'SF', finalMatches);
+  const quarterMatches = createStage(4, 'QF', semiMatches);
+  const r16Matches = createStage(8, 'R16', quarterMatches);
+
+  if (stage === 'R16') rounds.push({ name: 'Round of 16', matches: r16Matches });
+  if (stage === 'R16' || stage === 'QF') rounds.push({ name: 'Quarter-finals', matches: quarterMatches });
+  if (stage === 'R16' || stage === 'QF' || stage === 'SF') rounds.push({ name: 'Semi-finals', matches: semiMatches });
+  rounds.push({ name: 'Final', matches: finalMatches });
+
+  // Fill the first round with teams
+  const firstRound = rounds[0].matches;
+  for (let i = 0; i < teams.length; i++) {
+    const matchIdx = Math.floor(i / 2);
+    if (matchIdx < firstRound.length) {
+      if (i % 2 === 0) {
+        firstRound[matchIdx].teamA.playerIds = teams[i].playerIds;
+      } else {
+        firstRound[matchIdx].teamB.playerIds = teams[i].playerIds;
+      }
+    }
+  }
+
+  return { rounds };
+};
+
+/**
+ * Club Match: Balanced Cross-Pool
+ */
+export const suggestClubMatchBalanced = (
+  players: Player[],
+  clubs: { id: string, name: string }[],
+  activeMatches: Match[],
+  courts: number,
+  roundNumber: number
+): Match[] => {
+  if (!clubs || clubs.length < 2) return [];
+  
+  const availablePlayers = getAvailablePlayers(players, activeMatches);
+  const clubAPool = availablePlayers.filter(p => p.clubId === clubs[0].id);
+  const clubBPool = availablePlayers.filter(p => p.clubId === clubs[1].id);
+
+  // Sort by Match Count (Queue system)
+  clubAPool.sort((a, b) => (a.matchesPlayed || 0) - (b.matchesPlayed || 0));
+  clubBPool.sort((a, b) => (a.matchesPlayed || 0) - (b.matchesPlayed || 0));
+
+  const liveMatchCount = activeMatches.filter(m => m.status === 'live').length;
+  const freeCourts = courts - liveMatchCount;
+  const suggestedMatches: Match[] = [];
+
+  for (let i = 0; i < freeCourts; i++) {
+    if (clubAPool.length < 2 || clubBPool.length < 2) break;
+
+    const pA1 = clubAPool.shift()!;
+    const pA2 = clubAPool.shift()!;
+    const pB1 = clubBPool.shift()!;
+    const pB2 = clubBPool.shift()!;
+
+    suggestedMatches.push({
+      id: 'club-suggested-' + Math.random().toString(36).substr(2, 9),
+      teamA: { playerIds: [pA1.id, pA2.id], score: 0, sets: 0, games: 0 },
+      teamB: { playerIds: [pB1.id, pB2.id], score: 0, sets: 0, games: 0 },
+      status: 'pending',
+      court: liveMatchCount + i + 1,
+      round: roundNumber
+    });
+  }
+
+  return suggestedMatches;
+};
 
 /**
  * Fisher-Yates Shuffle for true randomness.

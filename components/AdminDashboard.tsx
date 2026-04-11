@@ -7,9 +7,11 @@ import { supabase } from '../lib/supabase';
 interface AdminDashboardProps {
   tournament: Tournament;
   onExit: () => void;
+  onGenerateSuggestions: (id: string) => void;
+  onApproveMatch: (tId: string, mId: string) => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ tournament, onExit }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ tournament, onExit, onGenerateSuggestions, onApproveMatch }) => {
   const [referees, setReferees] = useState<RefereeSession[]>([]);
   const [liveScores, setLiveScores] = useState<{ [courtId: number]: ScoreBroadcast }>({});
   const [logs, setLogs] = useState<string[]>([]);
@@ -56,6 +58,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ tournament, onExit }) =
     }
   };
 
+  const getPlayerName = (id: string) => tournament.players.find(p => p.id === id)?.name || 'Unknown';
+
   return (
     <div className="flex flex-col h-screen bg-background-dark text-white font-display overflow-hidden">
       <header className="p-6 border-b border-white/5 flex justify-between items-center bg-surface/50 backdrop-blur-xl">
@@ -79,7 +83,52 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ tournament, onExit }) =
       <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Court Monitor */}
         <div className="lg:col-span-2 space-y-6">
-          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Court Monitor</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Court Monitor</h3>
+            <button 
+              onClick={() => onGenerateSuggestions(tournament.id)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-background-dark rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20"
+            >
+              <span className="material-symbols-outlined text-sm">auto_awesome</span>
+              Generate Next Matches
+            </button>
+          </div>
+
+          {/* Suggested Matches */}
+          {tournament.suggestedMatches && tournament.suggestedMatches.length > 0 && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/70">Proposed Matches (Pending Approval)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {tournament.suggestedMatches.map((match) => (
+                  <div key={match.id} className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-primary uppercase">Court {match.court}</span>
+                      <button 
+                        onClick={() => onApproveMatch(tournament.id, match.id)}
+                        className="px-3 py-1.5 bg-primary text-background-dark rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 text-center">
+                        <p className="text-xs font-bold truncate text-white">
+                          {getPlayerName(match.teamA.playerIds[0])} / {getPlayerName(match.teamA.playerIds[1])}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-black text-primary italic">VS</span>
+                      <div className="flex-1 text-center">
+                        <p className="text-xs font-bold truncate text-white">
+                          {getPlayerName(match.teamB.playerIds[0])} / {getPlayerName(match.teamB.playerIds[1])}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Array.from({ length: tournament.courts }).map((_, i) => {
               const courtId = i + 1;
