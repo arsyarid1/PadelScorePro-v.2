@@ -1,0 +1,118 @@
+
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PadelScore Pro</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#000000" />
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#00ffcc",
+            "background-light": "#f9fafa",
+            "background-dark": "#111317",
+            "surface-dark": "#1C1F24",
+            "border-dark": "#2d3439",
+            "accent-gold": "#D4AF37",
+            "accent-silver": "#C0C0C0",
+            "accent-bronze": "#CD7F32",
+            "surface": "#1b2825",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          keyframes: {
+            confetti: {
+              '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+              '100%': { transform: 'translateY(100vh) rotate(720deg)', opacity: '0' }
+            },
+            winner: {
+              '0%, 100%': { transform: 'scale(1)', filter: 'drop-shadow(0 0 20px rgba(0,255,204,0.4))' },
+              '50%': { transform: 'scale(1.05)', filter: 'drop-shadow(0 0 40px rgba(0,255,204,0.8))' }
+            }
+          },
+          animation: {
+            confetti: 'confetti 3s ease-out forwards',
+            winner: 'winner 2s ease-in-out infinite'
+          }
+        },
+      },
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #395650;
+      border-radius: 10px;
+    }
+    .podium-rank-1 { border-top: 4px solid #D4AF37; }
+    .podium-rank-2 { border-top: 4px solid #C0C0C0; }
+    .podium-rank-3 { border-top: 4px solid #CD7F32; }
+    
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .fill-1 {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-soft {
+      animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .confetti-particle {
+      position: absolute;
+      top: -20px;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      pointer-events: none;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen overflow-x-hidden">
+  <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

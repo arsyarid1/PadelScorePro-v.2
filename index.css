@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", sans-serif;
+  --color-primary: #00ffcc;
+  --color-background-light: #f9fafa;
+  --color-background-dark: #111317;
+  --color-surface-dark: #1C1F24;
+  --color-border-dark: #2d3439;
+  --color-accent-gold: #D4AF37;
+  --color-accent-silver: #C0C0C0;
+  --color-accent-bronze: #CD7F32;
+  --color-surface: #1b2825;
+}
+
+@layer base {
+  body {
+    @apply bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen overflow-x-hidden;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #395650;
+  border-radius: 10px;
+}
+
+.podium-rank-1 { border-top: 4px solid #D4AF37; }
+.podium-rank-2 { border-top: 4px solid #C0C0C0; }
+.podium-rank-3 { border-top: 4px solid #CD7F32; }
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.confetti-particle {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.animate-confetti {
+  animation: confetti-fall linear forwards;
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Mobile PadelScore Pro",
+  "description": "A professional-grade Padel tournament management and live scoring application with AI-powered match analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
