@@ -382,13 +382,7 @@ const App: React.FC = () => {
             if (teamAPlayers.includes(p.id)) {
               const newWins = isWinnerA ? p.wins + 1 : p.wins;
               const matchesPlayed = p.matchesPlayed + 1;
-              let gainedPoints = t.scoring === 'Rally Points' ? teamAScore : teamAGames;
-              
-              // Apply bonus for Rally Points if player is behind in match count
-              if (t.scoring === 'Rally Points' && p.matchesPlayed < maxMatchesPlayed) {
-                const matchDiff = maxMatchesPlayed - p.matchesPlayed;
-                gainedPoints += (matchDiff * 10);
-              }
+              const gainedPoints = t.scoring === 'Rally Points' ? teamAScore : teamAGames;
 
               const historyEntry: MatchHistoryEntry = {
                 matchId,
@@ -415,13 +409,7 @@ const App: React.FC = () => {
             if (teamBPlayers.includes(p.id)) {
               const newWins = isWinnerB ? p.wins + 1 : p.wins;
               const matchesPlayed = p.matchesPlayed + 1;
-              let gainedPoints = t.scoring === 'Rally Points' ? teamBScore : teamBGames;
-
-              // Apply bonus for Rally Points if player is behind in match count
-              if (t.scoring === 'Rally Points' && p.matchesPlayed < maxMatchesPlayed) {
-                const matchDiff = maxMatchesPlayed - p.matchesPlayed;
-                gainedPoints += (matchDiff * 10);
-              }
+              const gainedPoints = t.scoring === 'Rally Points' ? teamBScore : teamBGames;
 
               const historyEntry: MatchHistoryEntry = {
                 matchId,
@@ -516,11 +504,34 @@ const App: React.FC = () => {
   };
 
   const handleEndTournament = (tournamentId: string) => {
-    // Call server to release shortcode and update status
+    const tournament = activeTournaments.find(t => t.id === tournamentId);
+    if (!tournament) return;
+
+    let updatedPlayers = tournament.players;
+
+    // Calculate bonus points: 10 points for every match difference compared to the player with the most matches
+    // This logic is typically for Round Robin formats (Americano/Mexicano) to equalize points for players who played fewer matches.
+    // We exclude 'Professional Tournament' (Knockout) as match counts naturally vary there.
+    if (tournament.type !== 'Professional Tournament') {
+      const maxMatches = Math.max(...tournament.players.map(p => p.matchesPlayed), 0);
+      updatedPlayers = tournament.players.map(p => {
+        const matchDiff = maxMatches - p.matchesPlayed;
+        if (matchDiff > 0) {
+          const bonus = matchDiff * 10;
+          return { ...p, points: p.points + bonus };
+        }
+        return p;
+      });
+    }
+
+    // Call server to release shortcode and update status with final player points
     fetch('/api/tournament/finish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournamentId })
+      body: JSON.stringify({ 
+        tournamentId,
+        players: updatedPlayers // Send updated players with bonus points to server
+      })
     }).catch(err => console.error("Failed to finish tournament on server", err));
 
     // Broadcast KICK_ALL to all connected clients
@@ -530,7 +541,7 @@ const App: React.FC = () => {
 
     setActiveTournaments(prev => prev.map(t => {
       if (t.id === tournamentId) {
-        return { ...t, status: 'finished' };
+        return { ...t, status: 'finished', players: updatedPlayers };
       }
       return t;
     }));

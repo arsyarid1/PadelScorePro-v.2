@@ -64,10 +64,13 @@ async function startServer() {
   });
 
   app.post("/api/tournament/finish", (req, res) => {
-    const { tournamentId } = req.body;
+    const { tournamentId, players } = req.body;
     const tournament = cloudTournaments.get(tournamentId);
     if (tournament) {
       tournament.status = 'finished';
+      if (players) {
+        tournament.players = players;
+      }
       if (tournament.shortcode) {
         shortcodeAssignments.set(tournament.shortcode, null);
       }

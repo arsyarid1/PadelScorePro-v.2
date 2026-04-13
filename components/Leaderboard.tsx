@@ -344,7 +344,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
                     <th className="px-4 md:px-6 py-4 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">
                       {leaderboardType === 'individual' ? 'W-L' : 'Match Wins'}
                     </th>
-                    <th className="px-4 md:px-6 py-4 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">Points</th>
+                    <th className="px-4 md:px-6 py-4 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">Total Score</th>
                     <th className="px-4 md:px-6 py-4 text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right w-20">Action</th>
                   </tr>
                 </thead>
@@ -374,9 +374,12 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
                           <span className="text-xs font-bold text-slate-300">{player.wins}-{player.matchesPlayed - player.wins}</span>
                         </td>
                         <td className="px-4 md:px-6 py-4 text-right">
-                          <span className="inline-flex items-center justify-center px-2 md:px-4 py-1.5 md:py-2 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[10px] md:text-sm font-black min-w-[50px] md:min-w-[80px]">
-                            {player.points}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="inline-flex items-center justify-center px-2 md:px-4 py-1.5 md:py-2 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[10px] md:text-sm font-black min-w-[50px] md:min-w-[80px]">
+                              {player.points}
+                            </span>
+                            <span className="text-[7px] text-slate-500 font-bold uppercase mt-1">Accumulated</span>
+                          </div>
                         </td>
                         <td className="px-4 md:px-6 py-4 text-right">
                           <button 
@@ -410,9 +413,12 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
                           <span className="text-xs font-bold text-slate-300">{club.wins}</span>
                         </td>
                         <td className="px-4 md:px-6 py-4 text-right">
-                          <span className="inline-flex items-center justify-center px-2 md:px-4 py-1.5 md:py-2 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[10px] md:text-sm font-black min-w-[50px] md:min-w-[80px]">
-                            {club.points}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="inline-flex items-center justify-center px-2 md:px-4 py-1.5 md:py-2 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[10px] md:text-sm font-black min-w-[50px] md:min-w-[80px]">
+                              {club.points}
+                            </span>
+                            <span className="text-[7px] text-slate-500 font-bold uppercase mt-1">Accumulated</span>
+                          </div>
                         </td>
                       </tr>
                     ))
