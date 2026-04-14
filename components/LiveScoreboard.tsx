@@ -32,6 +32,32 @@ const Confetti = () => {
     }));
   }, []);
 
+    // Script Debugging Mandiri (Tanpa Inspect.dev)
+useEffect(() => {
+  const debugElement = document.createElement('div');
+  debugElement.style.cssText = "position:fixed; bottom:10px; right:10px; z-index:9999; background:rgba(0,0,0,0.8); color:#00ffcc; padding:10px; border-radius:8px; font-family:monospace; font-size:12px; border:1px solid #00ffcc;";
+  debugElement.innerHTML = "Remote Status: Waiting...";
+  document.body.appendChild(debugElement);
+
+  const handleAnyKey = (e: KeyboardEvent) => {
+    // Menampilkan nama tombol di layar iPad
+    debugElement.innerHTML = `Key: ${e.key} <br> Code: ${e.code}`;
+    console.log(e.key);
+    
+    // Jika Anda ingin langsung tes preventDefault
+    if (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp') {
+      e.preventDefault();
+      debugElement.style.borderColor = "red"; // Berubah merah jika sistem dicegah
+    }
+  };
+
+  window.addEventListener('keydown', handleAnyKey, { capture: true });
+  return () => {
+    window.removeEventListener('keydown', handleAnyKey, { capture: true });
+    document.body.removeChild(debugElement);
+  };
+}, []);
+
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-40">
       {particles.map(p => (
