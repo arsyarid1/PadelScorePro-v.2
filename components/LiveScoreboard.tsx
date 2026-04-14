@@ -2,6 +2,29 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Tournament, MatchState, Player } from '../types';
 
+// Letakkan di bagian atas file, di bawah baris import
+if (typeof window !== 'undefined') {
+  const debugDiv = document.createElement('div');
+  debugDiv.id = 'remote-debug-portal';
+  debugDiv.style.cssText = "position:fixed;top:10px;right:10px;z-index:999999;background:#000;color:#0f0;padding:15px;border:2px solid #0f0;font-family:monospace;font-size:14px;pointer-events:none;";
+  debugDiv.innerText = "Sinyal: Menunggu...";
+  document.body.appendChild(debugDiv);
+
+  window.addEventListener('keydown', (e) => {
+    const el = document.getElementById('remote-debug-portal');
+    if (el) {
+      el.innerText = `Key: ${e.key} | Code: ${e.code}`;
+      el.style.background = '#030'; // Berkedip hijau saat ada sinyal
+      setTimeout(() => { if(el) el.style.background = '#000'; }, 100);
+    }
+    
+    // Coba blokir volume secara agresif di sini
+    if (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp') {
+      e.preventDefault();
+    }
+  }, { capture: true });
+}
+
 interface LiveScoreboardProps {
   tournament: Tournament;
   onUpdateScore: (
