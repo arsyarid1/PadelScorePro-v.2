@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Tournament, MatchState, Player } from '../types';
 
-
 interface LiveScoreboardProps {
   tournament: Tournament;
   onUpdateScore: (
@@ -355,75 +354,79 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     });
   };
 
-  // Tambahkan useRef di bagian atas komponen
-const clickTimer = React.useRef<NodeJS.Timeout | null>(null);
-const pressTimer = React.useRef<NodeJS.Timeout | null>(null);
-const lastKeyTime = React.useRef<number>(0);
+  const clickCount = React.useRef<number>(0);
+  const clickTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const isLongPressActive = React.useRef<boolean>(false);
 
-// Tambahkan useEffect ini
-useEffect(() => {
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp') {
-      // SANGAT PENTING: Hentikan aksi sistem secepat mungkin
+  useEffect(() => {
+    const handleRemoteKey = (e: KeyboardEvent) => {
+      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
+      if (!isVolumeUp) return;
+
+      // Block system behavior immediately
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
+    };
 
-      if (e.repeat) return; // Abaikan sinyal repeat otomatis
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
+      if (!isVolumeUp) return;
 
-      // Logika Long Press (Undo)
-      if (!pressTimer.current) {
-        pressTimer.current = setTimeout(() => {
-          console.log("Long Press Detected: Undo");
-          handleUndo(); // Pastikan Anda memiliki fungsi handleUndo
-          if (clickTimer.current) clearTimeout(clickTimer.current);
-          pressTimer.current = null;
-        }, 1000);
-      }
-    }
-  };
+      handleRemoteKey(e);
+      if (e.repeat) return;
 
-  const handleKeyUp = (e: KeyboardEvent) => {
-    if (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp') {
-      e.preventDefault();
+      isLongPressActive.current = false;
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
       
-      // Bersihkan timer long press
-      if (pressTimer.current) {
-        clearTimeout(pressTimer.current);
-        pressTimer.current = null;
-
-        // Cek Double vs Single Click
-        const now = Date.now();
-        const delta = now - lastKeyTime.current;
-
-        if (delta < 300) {
-          // Double Click (Team B)
-          if (clickTimer.current) clearTimeout(clickTimer.current);
-          console.log("Double Click: Team B");
-          handleScoreUpdate('teamB');
-          lastKeyTime.current = 0;
-        } else {
-          // Single Click (Team A)
-          lastKeyTime.current = now;
-          clickTimer.current = setTimeout(() => {
-            console.log("Single Click: Team A");
-            handleScoreUpdate('teamA');
-            lastKeyTime.current = 0;
-          }, 300);
+      longPressTimer.current = setTimeout(() => {
+        isLongPressActive.current = true;
+        undo();
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate(100);
         }
+      }, 1000);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
+      if (!isVolumeUp) return;
+
+      handleRemoteKey(e);
+
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
       }
-    }
-  };
 
-  // Gunakan { capture: true } untuk "membajak" event dari sistem
-  window.addEventListener('keydown', handleKeyDown, { capture: true });
-  window.addEventListener('keyup', handleKeyUp, { capture: true });
+      if (isLongPressActive.current) return;
 
-  return () => {
-    window.removeEventListener('keydown', handleKeyDown, { capture: true });
-    window.removeEventListener('keyup', handleKeyUp, { capture: true });
-  };
-}, [match, handleScoreUpdate]); // Pastikan dependency sesuai dengan fungsi di komponen Anda
+      clickCount.current += 1;
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+
+      clickTimer.current = setTimeout(() => {
+        if (clickCount.current === 1) {
+          addPoint('A');
+        } else if (clickCount.current >= 2) {
+          addPoint('B');
+        }
+        clickCount.current = 0;
+        clickTimer.current = null;
+      }, 300);
+    };
+
+    // Use capture: true to intercept events before system/other listeners
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      window.removeEventListener('keyup', handleKeyUp, { capture: true });
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, [isFinished, liveMatch.id]); // Re-bind if match changes to ensure fresh closures
 
   const getPlayer = (id: string) => tournament.players.find(p => p.id === id);
   
