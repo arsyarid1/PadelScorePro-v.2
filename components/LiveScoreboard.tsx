@@ -183,9 +183,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
   const addPoint = (team: 'A' | 'B', e?: React.MouseEvent | KeyboardEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
     
-    // Debounce to prevent double-clicks (500ms)
     const now = Date.now();
-    // Only apply debounce for mouse clicks, remote has its own logic
     if (e && 'type' in e && e.type === 'click') {
       if (now - lastClickTime.current < 500) return;
       lastClickTime.current = now;
@@ -193,82 +191,82 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
 
     if (isFinished) return;
 
-    // If it's a cloud tournament, only the referee can add points.
-    // We disable manual clicking on the scoreboard to prevent accidental changes.
     if (tournament.isCloud) {
       console.log("Manual scoring disabled for cloud tournaments. Use referee view.");
       return;
     }
 
-    // 1. Save history
-    setHistory(prev => [...prev, JSON.parse(JSON.stringify(match))]);
-    
-    // 2. Visual feedback
-    setFlash({ team, color: 'green' });
-    setTimeout(() => setFlash({ team: null, color: 'green' }), 300);
+    setMatch(prev => {
+      // 1. Save history
+      setHistory(h => [...h, JSON.parse(JSON.stringify(prev))]);
+      
+      // 2. Visual feedback
+      setFlash({ team, color: 'green' });
+      setTimeout(() => setFlash({ team: null, color: 'green' }), 300);
 
-    // 3. Calculate next state
-    const next = JSON.parse(JSON.stringify(match)) as MatchState;
-    const teamKey = team === 'A' ? 'teamA' : 'teamB';
-    const oppKey = team === 'A' ? 'teamB' : 'teamA';
-    let nextFinished = false;
+      // 3. Calculate next state
+      const next = JSON.parse(JSON.stringify(prev)) as MatchState;
+      const teamKey = team === 'A' ? 'teamA' : 'teamB';
+      const oppKey = team === 'A' ? 'teamB' : 'teamA';
+      let nextFinished = false;
 
-    if (isRally) {
-      next[teamKey].score += 1;
-      next[teamKey].totalGames += 1;
-      if (next.teamA.score + next.teamB.score >= tournament.maxPoints) {
-        nextFinished = true;
-      }
-    } else {
-      if (next.isTieBreak) {
+      if (isRally) {
         next[teamKey].score += 1;
-        if (next[teamKey].score >= 7 && (next[teamKey].score - next[oppKey].score) >= 2) {
-          next[teamKey].games += 1;
-          next[teamKey].totalGames += 1;
-          nextFinished = checkWinner(next, teamKey, oppKey);
+        next[teamKey].totalGames += 1;
+        if (next.teamA.score + next.teamB.score >= tournament.maxPoints) {
+          nextFinished = true;
         }
       } else {
-        if (next[teamKey].score < 3) {
+        if (next.isTieBreak) {
           next[teamKey].score += 1;
-        } else if (next[teamKey].score === 3) {
-          if (next[oppKey].score === 3) {
-            if (tournament.tennisRule === 'Golden Point') {
-              next[teamKey].games += 1;
-              next[teamKey].totalGames += 1;
-              nextFinished = checkWinner(next, teamKey, oppKey);
-            } else {
-              next[teamKey].score = 'Ad';
-            }
-          } else if (next[oppKey].score === 'Ad') {
-            next[oppKey].score = 3; 
-          } else {
+          if (next[teamKey].score >= 7 && (next[teamKey].score - next[oppKey].score) >= 2) {
             next[teamKey].games += 1;
             next[teamKey].totalGames += 1;
             nextFinished = checkWinner(next, teamKey, oppKey);
           }
-        } else if (next[teamKey].score === 'Ad') {
-          next[teamKey].games += 1;
-          next[teamKey].totalGames += 1;
-          nextFinished = checkWinner(next, teamKey, oppKey);
+        } else {
+          if (next[teamKey].score < 3) {
+            next[teamKey].score += 1;
+          } else if (next[teamKey].score === 3) {
+            if (next[oppKey].score === 3) {
+              if (tournament.tennisRule === 'Golden Point') {
+                next[teamKey].games += 1;
+                next[teamKey].totalGames += 1;
+                nextFinished = checkWinner(next, teamKey, oppKey);
+              } else {
+                next[teamKey].score = 'Ad';
+              }
+            } else if (next[oppKey].score === 'Ad') {
+              next[oppKey].score = 3; 
+            } else {
+              next[teamKey].games += 1;
+              next[teamKey].totalGames += 1;
+              nextFinished = checkWinner(next, teamKey, oppKey);
+            }
+          } else if (next[teamKey].score === 'Ad') {
+            next[teamKey].games += 1;
+            next[teamKey].totalGames += 1;
+            nextFinished = checkWinner(next, teamKey, oppKey);
+          }
         }
       }
-    }
 
-    // 4. Update local state
-    setMatch(next);
-    if (nextFinished) setIsFinished(true);
-    
-    // 5. Update parent state
-    onUpdateScore(
-      liveMatch.id, 
-      next.teamA.score, 
-      next.teamB.score, 
-      nextFinished ? 'finished' : 'live',
-      next.teamA.totalGames,
-      next.teamB.totalGames,
-      next.teamA.sets,
-      next.teamB.sets
-    );
+      if (nextFinished) setIsFinished(true);
+      
+      // 5. Update parent state
+      onUpdateScore(
+        liveMatch.id, 
+        next.teamA.score, 
+        next.teamB.score, 
+        nextFinished ? 'finished' : 'live',
+        next.teamA.totalGames,
+        next.teamB.totalGames,
+        next.teamA.sets,
+        next.teamB.sets
+      );
+
+      return next;
+    });
   };
 
   const checkWinner = (next: MatchState, teamKey: 'teamA' | 'teamB', oppKey: 'teamA' | 'teamB'): boolean => {
@@ -332,90 +330,103 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
 
   const undo = (e?: React.MouseEvent | KeyboardEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
-    if (history.length === 0) return;
     
-    setIsFinished(false);
-    const lastState = history[history.length - 1];
-    setMatch(lastState);
-    setHistory(prev => prev.slice(0, -1));
+    setHistory(prevHistory => {
+      if (prevHistory.length === 0) return prevHistory;
+      
+      const lastState = prevHistory[prevHistory.length - 1];
+      setMatch(lastState);
+      setIsFinished(false);
 
-    // Update parent after undo
-    onUpdateScore(
-      liveMatch.id, 
-      lastState.teamA.score, 
-      lastState.teamB.score, 
-      'live',
-      lastState.teamA.totalGames,
-      lastState.teamB.totalGames,
-      lastState.teamA.sets,
-      lastState.teamB.sets
-    );
+      // Update parent after undo
+      onUpdateScore(
+        liveMatch.id, 
+        lastState.teamA.score, 
+        lastState.teamB.score, 
+        'live',
+        lastState.teamA.totalGames,
+        lastState.teamB.totalGames,
+        lastState.teamA.sets,
+        lastState.teamB.sets
+      );
+
+      return prevHistory.slice(0, -1);
+    });
   };
 
-  const lastRemoteClickTime = React.useRef<number>(0);
-  const remoteTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const clickCount = React.useRef<number>(0);
+  const clickTimer = React.useRef<NodeJS.Timeout | null>(null);
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const isLongPressActive = React.useRef<boolean>(false);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'VolumeDown') {
-        e.preventDefault();
-        if (e.repeat) return;
+    const handleRemoteKey = (e: KeyboardEvent) => {
+      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
+      if (!isVolumeUp) return;
 
-        isLongPressActive.current = false;
-        longPressTimer.current = setTimeout(() => {
-          isLongPressActive.current = true;
-          undo();
-          // Haptic feedback if available
-          if (window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate(100);
-          }
-        }, 1000);
-      }
+      // Block system behavior immediately
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
+      if (!isVolumeUp) return;
+
+      handleRemoteKey(e);
+      if (e.repeat) return;
+
+      isLongPressActive.current = false;
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      
+      longPressTimer.current = setTimeout(() => {
+        isLongPressActive.current = true;
+        undo();
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate(100);
+        }
+      }, 1000);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'VolumeDown') {
-        e.preventDefault();
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
+      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
+      if (!isVolumeUp) return;
 
-        if (isLongPressActive.current) return;
+      handleRemoteKey(e);
 
-        const now = Date.now();
-        const diff = now - lastRemoteClickTime.current;
-
-        if (diff < 300) {
-          // Double Click -> Team B
-          if (remoteTimer.current) {
-            clearTimeout(remoteTimer.current);
-            remoteTimer.current = null;
-          }
-          addPoint('B');
-          lastRemoteClickTime.current = 0;
-        } else {
-          // Potential Single Click -> Team A
-          lastRemoteClickTime.current = now;
-          remoteTimer.current = setTimeout(() => {
-            addPoint('A');
-            remoteTimer.current = null;
-          }, 300);
-        }
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
       }
+
+      if (isLongPressActive.current) return;
+
+      clickCount.current += 1;
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+
+      clickTimer.current = setTimeout(() => {
+        if (clickCount.current === 1) {
+          addPoint('A');
+        } else if (clickCount.current >= 2) {
+          addPoint('B');
+        }
+        clickCount.current = 0;
+        clickTimer.current = null;
+      }, 300);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    // Use capture: true to intercept events before system/other listeners
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      if (remoteTimer.current) clearTimeout(remoteTimer.current);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      window.removeEventListener('keyup', handleKeyUp, { capture: true });
+      if (clickTimer.current) clearTimeout(clickTimer.current);
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
-  }, [match, history, isFinished]);
+  }, [isFinished, liveMatch.id]); // Re-bind if match changes to ensure fresh closures
 
   const getPlayer = (id: string) => tournament.players.find(p => p.id === id);
   
