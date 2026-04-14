@@ -396,7 +396,6 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
                                     </button>
                                   </>
                                 )}
-                                <p className="font-bold text-white uppercase text-xs md:text-sm tracking-tight truncate">{player.name}</p>
                                 {player.clubId && (
                                   <span className="text-[8px] bg-white/5 text-slate-500 px-1.5 py-0.5 rounded font-black uppercase">
                                     {tournament.clubs?.find(c => c.id === player.clubId)?.name}
