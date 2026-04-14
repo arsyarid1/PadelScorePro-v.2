@@ -180,13 +180,16 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     return score === 'Ad' ? 'ADV' : score;
   };
 
-  const addPoint = (team: 'A' | 'B', e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  const addPoint = (team: 'A' | 'B', e?: React.MouseEvent | KeyboardEvent) => {
+    if (e && 'stopPropagation' in e) e.stopPropagation();
     
     // Debounce to prevent double-clicks (500ms)
     const now = Date.now();
-    if (now - lastClickTime.current < 500) return;
-    lastClickTime.current = now;
+    // Only apply debounce for mouse clicks, remote has its own logic
+    if (e && 'type' in e && e.type === 'click') {
+      if (now - lastClickTime.current < 500) return;
+      lastClickTime.current = now;
+    }
 
     if (isFinished) return;
 
@@ -327,8 +330,8 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     }
   };
 
-  const undo = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const undo = (e?: React.MouseEvent | KeyboardEvent) => {
+    if (e && 'stopPropagation' in e) e.stopPropagation();
     if (history.length === 0) return;
     
     setIsFinished(false);
@@ -348,6 +351,71 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
       lastState.teamB.sets
     );
   };
+
+  const lastRemoteClickTime = React.useRef<number>(0);
+  const remoteTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const isLongPressActive = React.useRef<boolean>(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'VolumeDown') {
+        e.preventDefault();
+        if (e.repeat) return;
+
+        isLongPressActive.current = false;
+        longPressTimer.current = setTimeout(() => {
+          isLongPressActive.current = true;
+          undo();
+          // Haptic feedback if available
+          if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(100);
+          }
+        }, 1000);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'VolumeDown') {
+        e.preventDefault();
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+
+        if (isLongPressActive.current) return;
+
+        const now = Date.now();
+        const diff = now - lastRemoteClickTime.current;
+
+        if (diff < 300) {
+          // Double Click -> Team B
+          if (remoteTimer.current) {
+            clearTimeout(remoteTimer.current);
+            remoteTimer.current = null;
+          }
+          addPoint('B');
+          lastRemoteClickTime.current = 0;
+        } else {
+          // Potential Single Click -> Team A
+          lastRemoteClickTime.current = now;
+          remoteTimer.current = setTimeout(() => {
+            addPoint('A');
+            remoteTimer.current = null;
+          }, 300);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (remoteTimer.current) clearTimeout(remoteTimer.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, [match, history, isFinished]);
 
   const getPlayer = (id: string) => tournament.players.find(p => p.id === id);
   
