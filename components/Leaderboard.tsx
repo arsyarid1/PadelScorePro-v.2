@@ -360,6 +360,42 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ tournament, onGoLive, onEnd, 
                             <img src={player.avatarUrl} className="size-8 md:size-10 rounded-lg border border-white/10" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 group/name">
+                              {editingPlayerId === player.id ? (
+                                  <input
+                                    autoFocus
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onBlur={() => {
+                                      if (editValue.trim() && editValue !== player.name) {
+                                        onUpdatePlayerName(player.id, editValue.trim());
+                                      }
+                                      setEditingPlayerId(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        if (editValue.trim() && editValue !== player.name) {
+                                          onUpdatePlayerName(player.id, editValue.trim());
+                                        }
+                                        setEditingPlayerId(null);
+                                      }
+                                      if (e.key === 'Escape') setEditingPlayerId(null);
+                                    }}
+                                    className="bg-white/10 border border-primary/50 rounded px-2 py-0.5 text-white font-bold text-xs md:text-sm w-full outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                ) : (
+                                  <>
+                                    <p className="font-bold text-white uppercase text-xs md:text-sm tracking-tight truncate">{player.name}</p>
+                                    <button 
+                                      onClick={() => {
+                                        setEditingPlayerId(player.id);
+                                        setEditValue(player.name);
+                                      }}
+                                      className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 hover:text-primary"
+                                    >
+                                      <span className="material-symbols-outlined text-xs">edit</span>
+                                    </button>
+                                  </>
+                                )}
                                 <p className="font-bold text-white uppercase text-xs md:text-sm tracking-tight truncate">{player.name}</p>
                                 {player.clubId && (
                                   <span className="text-[8px] bg-white/5 text-slate-500 px-1.5 py-0.5 rounded font-black uppercase">
