@@ -362,6 +362,22 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
   useEffect(() => {
     if (isFinished) return;
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      
+      const navKeys = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Enter', ' '];
+      if (navKeys.includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (e.key === 'ArrowRight') {
+          addPoint('A');
+        } else if (e.key === 'ArrowLeft') {
+          addPoint('B');
+        }
+      }
+    };
+
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       
@@ -405,10 +421,12 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
       }, 300);
     };
 
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('mousedown', handleMouseDown, { capture: true });
     window.addEventListener('mouseup', handleMouseUp, { capture: true });
     
     return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('mousedown', handleMouseDown, { capture: true });
       window.removeEventListener('mouseup', handleMouseUp, { capture: true });
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
