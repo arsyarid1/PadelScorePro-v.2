@@ -438,6 +438,46 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         ? (match.teamA.games > match.teamB.games ? 'A' : (match.teamA.games < match.teamB.games ? 'B' : null))
         : (match.teamA.sets >= 2 ? 'A' : (match.teamB.sets >= 2 ? 'B' : null)));
 
+  useEffect(() => {
+  const debugDiv = document.createElement('div');
+  debugDiv.style.cssText = "position:fixed;top:10px;left:10px;z-index:999999;background:rgba(0,0,0,0.9);color:#0f0;padding:15px;border:2px solid #0f0;font-family:monospace;font-size:12px;pointer-events:none;max-width:250px;";
+  debugDiv.innerHTML = "STATUS: MENUNGGU SINYAL...";
+  document.body.appendChild(debugDiv);
+
+  const logEvent = (type: string, detail: string) => {
+    debugDiv.innerHTML = `EVENT: ${type}<br>DETAIL: ${detail}<br><hr>Ketuk layar 1x jika tidak ada respon.`;
+    debugDiv.style.borderColor = "#f0f"; // Berubah warna setiap ada sinyal
+    setTimeout(() => { debugDiv.style.borderColor = "#0f0"; }, 200);
+  };
+
+  // 1. Cek Tombol Keyboard (Standard)
+  const handleKey = (e: KeyboardEvent) => {
+    logEvent('KEYBOARD', `Key: ${e.key} | Code: ${e.code}`);
+    if (['VolumeUp', 'VolumeDown', 'Tab', 'Enter'].includes(e.key)) e.preventDefault();
+  };
+
+  // 2. Cek Klik (Jika remote terdeteksi sebagai mouse/assistive)
+  const handleClick = (e: MouseEvent) => {
+    logEvent('MOUSE/CLICK', `Button: ${e.button} (0=Left, 1=Mid, 2=Right)`);
+  };
+
+  // 3. Cek Scroll (Beberapa remote assistive menggunakan fungsi scroll)
+  const handleWheel = (e: WheelEvent) => {
+    logEvent('SCROLL', `DeltaY: ${e.deltaY.toFixed(0)}`);
+  };
+
+  window.addEventListener('keydown', handleKey, { capture: true });
+  window.addEventListener('mousedown', handleClick, { capture: true });
+  window.addEventListener('wheel', handleWheel, { capture: true, passive: false });
+
+  return () => {
+    window.removeEventListener('keydown', handleKey, { capture: true });
+    window.removeEventListener('mousedown', handleClick, { capture: true });
+    window.removeEventListener('wheel', handleWheel, { capture: true });
+    document.body.removeChild(debugDiv);
+  };
+}, []);
+
   return (
     <div className="flex flex-col h-screen w-full bg-background-dark font-display text-white overflow-hidden select-none">
       <header className="flex items-center justify-between border-b border-primary/10 px-4 md:px-8 py-3 md:py-4 bg-background-dark z-50">
