@@ -365,12 +365,24 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
       
-      const navKeys = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Enter', ' '];
+      const navKeys = ['Tab', 'ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Enter', ' '];
       if (navKeys.includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         
-        if (e.key === 'ArrowRight') {
+        // Remove focus from any active element to hide the iPad focus ring
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        
+        if (e.key === 'Tab') {
+          if (!e.shiftKey) {
+            addPoint('A');
+          } else {
+            addPoint('B');
+          }
+        } else if (e.key === 'ArrowRight') {
           addPoint('A');
         } else if (e.key === 'ArrowLeft') {
           addPoint('B');
@@ -443,7 +455,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         : (match.teamA.sets >= 2 ? 'A' : (match.teamB.sets >= 2 ? 'B' : null)));
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background-dark font-display text-white overflow-hidden select-none">
+    <div className="flex flex-col h-screen w-full bg-background-dark font-display text-white overflow-hidden select-none focus:outline-none [&_*]:focus:outline-none">
       <header className="flex items-center justify-between border-b border-primary/10 px-4 md:px-8 py-3 md:py-4 bg-background-dark z-50">
         <div className="flex items-center gap-2 md:gap-4">
           {onExit && (
