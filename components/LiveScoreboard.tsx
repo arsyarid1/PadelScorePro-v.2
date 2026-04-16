@@ -2,8 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Tournament, MatchState, Player } from '../types';
 
-
-
 interface LiveScoreboardProps {
   tournament: Tournament;
   onUpdateScore: (
@@ -182,7 +180,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     return score === 'Ad' ? 'ADV' : score;
   };
 
-  const addPoint = (team: 'A' | 'B', e?: React.MouseEvent | KeyboardEvent) => {
+  const addPoint = (team: 'A' | 'B', e?: React.MouseEvent | KeyboardEvent | MouseEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
     
     const now = Date.now();
@@ -330,7 +328,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     }
   };
 
-  const undo = (e?: React.MouseEvent | KeyboardEvent) => {
+  const undo = (e?: React.MouseEvent | KeyboardEvent | MouseEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
     
     setHistory(prevHistory => {
@@ -356,34 +354,22 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     });
   };
 
-  const clickCount = React.useRef<number>(0);
-  const clickTimer = React.useRef<NodeJS.Timeout | null>(null);
-  const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
-  const isLongPressActive = React.useRef<boolean>(false);
+  const clickCountRef = React.useRef<number>(0);
+  const clickTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const pressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isLongPressRef = React.useRef<boolean>(false);
 
   useEffect(() => {
-    const handleRemoteKey = (e: KeyboardEvent) => {
-      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
-      if (!isVolumeUp) return;
+    if (isFinished) return;
 
-      // Block system behavior immediately
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
-      if (!isVolumeUp) return;
-
-      handleRemoteKey(e);
-      if (e.repeat) return;
-
-      isLongPressActive.current = false;
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
       
-      longPressTimer.current = setTimeout(() => {
-        isLongPressActive.current = true;
+      isLongPressRef.current = false;
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+      
+      pressTimerRef.current = setTimeout(() => {
+        isLongPressRef.current = true;
         undo();
         if (window.navigator && window.navigator.vibrate) {
           window.navigator.vibrate(100);
@@ -391,44 +377,44 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
       }, 1000);
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const isVolumeUp = e.key === 'VolumeUp' || e.key === 'AudioVolumeUp';
-      if (!isVolumeUp) return;
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button !== 0) return;
 
-      handleRemoteKey(e);
-
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
+      if (pressTimerRef.current) {
+        clearTimeout(pressTimerRef.current);
+        pressTimerRef.current = null;
       }
 
-      if (isLongPressActive.current) return;
+      if (isLongPressRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
-      clickCount.current += 1;
-      if (clickTimer.current) clearTimeout(clickTimer.current);
+      clickCountRef.current += 1;
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
 
-      clickTimer.current = setTimeout(() => {
-        if (clickCount.current === 1) {
+      clickTimerRef.current = setTimeout(() => {
+        if (clickCountRef.current === 1) {
           addPoint('A');
-        } else if (clickCount.current >= 2) {
+        } else if (clickCountRef.current >= 2) {
           addPoint('B');
         }
-        clickCount.current = 0;
-        clickTimer.current = null;
+        clickCountRef.current = 0;
+        clickTimerRef.current = null;
       }, 300);
     };
 
-    // Use capture: true to intercept events before system/other listeners
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    window.addEventListener('mousedown', handleMouseDown, { capture: true });
+    window.addEventListener('mouseup', handleMouseUp, { capture: true });
     
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
-      window.removeEventListener('keyup', handleKeyUp, { capture: true });
-      if (clickTimer.current) clearTimeout(clickTimer.current);
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      window.removeEventListener('mousedown', handleMouseDown, { capture: true });
+      window.removeEventListener('mouseup', handleMouseUp, { capture: true });
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
     };
-  }, [isFinished, liveMatch.id]); // Re-bind if match changes to ensure fresh closures
+  }, [isFinished, liveMatch.id]);
 
   const getPlayer = (id: string) => tournament.players.find(p => p.id === id);
   
@@ -437,46 +423,6 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     : (tournament.scoring === 'Custom Match' 
         ? (match.teamA.games > match.teamB.games ? 'A' : (match.teamA.games < match.teamB.games ? 'B' : null))
         : (match.teamA.sets >= 2 ? 'A' : (match.teamB.sets >= 2 ? 'B' : null)));
-
-  useEffect(() => {
-  const debugDiv = document.createElement('div');
-  debugDiv.style.cssText = "position:fixed;top:10px;left:10px;z-index:999999;background:rgba(0,0,0,0.9);color:#0f0;padding:15px;border:2px solid #0f0;font-family:monospace;font-size:12px;pointer-events:none;max-width:250px;";
-  debugDiv.innerHTML = "STATUS: MENUNGGU SINYAL...";
-  document.body.appendChild(debugDiv);
-
-  const logEvent = (type: string, detail: string) => {
-    debugDiv.innerHTML = `EVENT: ${type}<br>DETAIL: ${detail}<br><hr>Ketuk layar 1x jika tidak ada respon.`;
-    debugDiv.style.borderColor = "#f0f"; // Berubah warna setiap ada sinyal
-    setTimeout(() => { debugDiv.style.borderColor = "#0f0"; }, 200);
-  };
-
-  // 1. Cek Tombol Keyboard (Standard)
-  const handleKey = (e: KeyboardEvent) => {
-    logEvent('KEYBOARD', `Key: ${e.key} | Code: ${e.code}`);
-    if (['VolumeUp', 'VolumeDown', 'Tab', 'Enter'].includes(e.key)) e.preventDefault();
-  };
-
-  // 2. Cek Klik (Jika remote terdeteksi sebagai mouse/assistive)
-  const handleClick = (e: MouseEvent) => {
-    logEvent('MOUSE/CLICK', `Button: ${e.button} (0=Left, 1=Mid, 2=Right)`);
-  };
-
-  // 3. Cek Scroll (Beberapa remote assistive menggunakan fungsi scroll)
-  const handleWheel = (e: WheelEvent) => {
-    logEvent('SCROLL', `DeltaY: ${e.deltaY.toFixed(0)}`);
-  };
-
-  window.addEventListener('keydown', handleKey, { capture: true });
-  window.addEventListener('mousedown', handleClick, { capture: true });
-  window.addEventListener('wheel', handleWheel, { capture: true, passive: false });
-
-  return () => {
-    window.removeEventListener('keydown', handleKey, { capture: true });
-    window.removeEventListener('mousedown', handleClick, { capture: true });
-    window.removeEventListener('wheel', handleWheel, { capture: true });
-    document.body.removeChild(debugDiv);
-  };
-}, []);
 
   return (
     <div className="flex flex-col h-screen w-full bg-background-dark font-display text-white overflow-hidden select-none">
