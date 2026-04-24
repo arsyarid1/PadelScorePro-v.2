@@ -109,28 +109,47 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
 
   // Sync scores and state from props (for remote viewing/stadium view)
   useEffect(() => {
-    setMatch(prev => ({
-      ...prev,
-      teamA: { 
-        ...prev.teamA, 
-        score: liveMatch.teamA.score || 0,
-        games: liveMatch.teamA.games || 0,
-        sets: liveMatch.teamA.sets || 0,
-        totalGames: liveMatch.teamA.games || 0
-      },
-      teamB: { 
-        ...prev.teamB, 
-        score: liveMatch.teamB.score || 0,
-        games: liveMatch.teamB.games || 0,
-        sets: liveMatch.teamB.sets || 0,
-        totalGames: liveMatch.teamB.games || 0
-      },
-      isTieBreak: liveMatch.isTieBreak || false,
-      server: liveMatch.server || 'A'
-    }));
+    // Avoid syncing if we just performed a local update recently (prevents loops/jitter)
+    const now = Date.now();
+    if (now - lastClickTime.current < 2000 && !tournament.isCloud) return;
+
+    setMatch(prev => {
+      // Only update if there is an actual difference to avoid unnecessary re-renders
+      const isDifferent = 
+        prev.teamA.score !== (liveMatch.teamA.score || 0) ||
+        prev.teamB.score !== (liveMatch.teamB.score || 0) ||
+        prev.teamA.games !== (liveMatch.teamA.games || 0) ||
+        prev.teamB.games !== (liveMatch.teamB.games || 0);
+
+      if (!isDifferent && prev.server === (liveMatch.server || 'A') && prev.isTieBreak === (liveMatch.isTieBreak || false)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        teamA: { 
+          ...prev.teamA, 
+          score: liveMatch.teamA.score || 0,
+          games: liveMatch.teamA.games || 0,
+          sets: liveMatch.teamA.sets || 0,
+          totalGames: liveMatch.teamA.games || 0
+        },
+        teamB: { 
+          ...prev.teamB, 
+          score: liveMatch.teamB.score || 0,
+          games: liveMatch.teamB.games || 0,
+          sets: liveMatch.teamB.sets || 0,
+          totalGames: liveMatch.teamB.games || 0
+        },
+        isTieBreak: liveMatch.isTieBreak || false,
+        server: liveMatch.server || 'A'
+      };
+    });
+
     if (liveMatch.status === 'finished') setIsFinished(true);
     else setIsFinished(false);
   }, [
+    liveMatch.id,
     liveMatch.teamA.score, 
     liveMatch.teamB.score, 
     liveMatch.teamA.games, 
@@ -139,7 +158,8 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     liveMatch.teamB.sets, 
     liveMatch.status,
     liveMatch.isTieBreak,
-    liveMatch.server
+    liveMatch.server,
+    tournament.isCloud
   ]);
 
   useEffect(() => {
@@ -181,93 +201,107 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
   };
 
   const addPoint = (team: 'A' | 'B', e?: React.MouseEvent | KeyboardEvent | MouseEvent) => {
-    // Stop propagation if it's a DOM event
-    if (e && 'stopPropagation' in e) e.stopPropagation();
+    if (e) {
+      if ('stopPropagation' in e) e.stopPropagation();
+      if ('preventDefault' in e) e.preventDefault();
+      if ('stopImmediatePropagation' in e) e.stopImmediatePropagation();
+    }
     
     if (isFinished) return;
 
+    const now = Date.now();
+    if (now - lastClickTime.current < 500) return; 
+    lastClickTime.current = now;
+
     if (tournament.isCloud) {
-      console.log("Manual scoring disabled for cloud tournaments. Use referee view.");
+      console.log("Scoring restricted: Cloud Tournament");
       return;
     }
 
-    // Use current state to calculation next state
-    // history should record the state BEFORE the point was added
-    setHistory(h => [...h, JSON.parse(JSON.stringify(match))]);
-    
-    // Calculate next state
-    const next = JSON.parse(JSON.stringify(match)) as MatchState;
-    const teamKey = team === 'A' ? 'teamA' : 'teamB';
-    const oppKey = team === 'A' ? 'teamB' : 'teamA';
-    let nextFinished = false;
+    // Determine the next state based on current local state
+    setMatch(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as MatchState;
+      const teamKey = team === 'A' ? 'teamA' : 'teamB';
+      const oppKey = team === 'A' ? 'teamB' : 'teamA';
+      let nextFinished = false;
 
-    if (isRally) {
-      next[teamKey].score += 1;
-      next[teamKey].totalGames += 1;
-      if (next.teamA.score + next.teamB.score >= tournament.maxPoints) {
-        nextFinished = true;
-      }
-    } else {
-      if (next.isTieBreak) {
+      // 1. Scoring Logic
+      if (isRally) {
         next[teamKey].score += 1;
-        if (next[teamKey].score >= 7 && (next[teamKey].score - next[oppKey].score) >= 2) {
-          next[teamKey].games += 1;
-          next[teamKey].totalGames += 1;
-          nextFinished = checkWinner(next, teamKey, oppKey);
+        next[teamKey].totalGames += 1;
+        if (next.teamA.score + next.teamB.score >= tournament.maxPoints) {
+          nextFinished = true;
         }
       } else {
-        if (next[teamKey].score < 3) {
+        if (next.isTieBreak) {
           next[teamKey].score += 1;
-        } else if (next[teamKey].score === 3) {
-          if (next[oppKey].score === 3) {
-            if (tournament.tennisRule === 'Golden Point') {
-              next[teamKey].games += 1;
-              next[teamKey].totalGames += 1;
-              nextFinished = checkWinner(next, teamKey, oppKey);
-            } else {
-              next[teamKey].score = 'Ad';
-            }
-          } else if (next[oppKey].score === 'Ad') {
-            next[oppKey].score = 3; 
-          } else {
+          if (next[teamKey].score >= 7 && (next[teamKey].score - next[oppKey].score) >= 2) {
             next[teamKey].games += 1;
             next[teamKey].totalGames += 1;
             nextFinished = checkWinner(next, teamKey, oppKey);
           }
-        } else if (next[teamKey].score === 'Ad') {
-          next[teamKey].games += 1;
-          next[teamKey].totalGames += 1;
-          nextFinished = checkWinner(next, teamKey, oppKey);
+        } else {
+          if (next[teamKey].score < 3) {
+            next[teamKey].score += 1;
+          } else if (next[teamKey].score === 3) {
+            if (next[oppKey].score === 3) {
+              if (tournament.tennisRule === 'Golden Point') {
+                next[teamKey].games += 1;
+                next[teamKey].totalGames += 1;
+                nextFinished = checkWinner(next, teamKey, oppKey);
+              } else {
+                next[teamKey].score = 'Ad';
+              }
+            } else if (next[oppKey].score === 'Ad') {
+              next[oppKey].score = 3; 
+            } else {
+              next[teamKey].games += 1;
+              next[teamKey].totalGames += 1;
+              nextFinished = checkWinner(next, teamKey, oppKey);
+            }
+          } else if (next[teamKey].score === 'Ad') {
+            next[teamKey].games += 1;
+            next[teamKey].totalGames += 1;
+            nextFinished = checkWinner(next, teamKey, oppKey);
+          }
         }
       }
-    }
 
-    if (nextFinished) setIsFinished(true);
-    
-    // Apply state
-    setMatch(next);
-    
-    // Visual feedback
-    setFlash({ team, color: 'green' });
-    setTimeout(() => setFlash({ team: null, color: 'green' }), 300);
+      if (nextFinished) setIsFinished(true);
 
-    // Update parent state
-    onUpdateScore(
-      liveMatch.id, 
-      next.teamA.score, 
-      next.teamB.score, 
-      nextFinished ? 'finished' : 'live',
-      next.teamA.totalGames,
-      next.teamB.totalGames,
-      next.teamA.sets,
-      next.teamB.sets
-    );
+      // 2. Perform Side Effects after returning state (using scheduled task or microtask)
+      // We'll call the parent update AFTER the render loop to keep this pure
+      queueMicrotask(() => {
+        // Save history
+        setHistory(h => [...h, JSON.parse(JSON.stringify(prev))]);
+        
+        // Finalize state in parent
+        onUpdateScore(
+          liveMatch.id, 
+          next.teamA.score, 
+          next.teamB.score, 
+          nextFinished ? 'finished' : 'live',
+          next.teamA.totalGames,
+          next.teamB.totalGames,
+          next.teamA.sets,
+          next.teamB.sets
+        );
+
+        // UI Feedback
+        setFlash({ team, color: 'green' });
+        setTimeout(() => setFlash({ team: null, color: 'green' }), 300);
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate(50);
+        }
+      });
+
+      return next;
+    });
   };
 
   const checkWinner = (next: MatchState, teamKey: 'teamA' | 'teamB', oppKey: 'teamA' | 'teamB'): boolean => {
     if (tournament.scoring === 'Custom Match') {
       const totalGames = next.teamA.games + next.teamB.games;
-      const majority = Math.floor(tournament.maxPoints / 2) + 1;
 
       if (tournament.customMatchType === 'Race to') {
         if (next[teamKey].games >= tournament.maxPoints) {
@@ -276,7 +310,6 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
           return true;
         }
       } else if (tournament.customMatchType === 'Best of') {
-        // Fixed Games logic: only end when total games reach maxPoints
         if (totalGames >= tournament.maxPoints) {
           next.teamA.score = 0;
           next.teamB.score = 0;
@@ -284,13 +317,11 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         }
       }
       
-      // Reset points for next game if not finished
       next.teamA.score = 0;
       next.teamB.score = 0;
       next.isTieBreak = false;
       return false;
     } else {
-      // Tournament Pro (Sets)
       return checkGameWinLogic(next, teamKey, oppKey);
     }
   };
@@ -300,7 +331,8 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     next.teamB.score = 0;
     next.isTieBreak = false;
 
-    if (next[teamKey].games >= 6 && (next[teamKey].games - next[oppKey].games) >= 2) {
+    if ((next[teamKey].games >= 6 && (next[teamKey].games - next[oppKey].games) >= 2) || 
+        (next[teamKey].games === 7 && next[oppKey].games === 6)) {
       return checkSetWinLogic(next, teamKey, oppKey);
     } else if (next.teamA.games === 6 && next.teamB.games === 6) {
       next.isTieBreak = true;
@@ -326,24 +358,26 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
   const undo = (e?: React.MouseEvent | KeyboardEvent | MouseEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
     
-    if (history.length === 0) return;
-    
-    const lastState = history[history.length - 1];
-    setMatch(lastState);
-    setHistory(prev => prev.slice(0, -1));
-    setIsFinished(false);
+    setHistory(prevHistory => {
+      if (prevHistory.length === 0) return prevHistory;
+      
+      const lastState = prevHistory[prevHistory.length - 1];
+      setMatch(lastState);
+      setIsFinished(false);
 
-    // Update parent after undo
-    onUpdateScore(
-      liveMatch.id, 
-      lastState.teamA.score, 
-      lastState.teamB.score, 
-      'live',
-      lastState.teamA.totalGames,
-      lastState.teamB.totalGames,
-      lastState.teamA.sets,
-      lastState.teamB.sets
-    );
+      onUpdateScore(
+        liveMatch.id, 
+        lastState.teamA.score, 
+        lastState.teamB.score, 
+        'live',
+        lastState.teamA.totalGames,
+        lastState.teamB.totalGames,
+        lastState.teamA.sets,
+        lastState.teamB.sets
+      );
+
+      return prevHistory.slice(0, -1);
+    });
   };
 
   const clickCountRef = React.useRef<number>(0);
@@ -363,26 +397,26 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         e.stopPropagation();
         e.stopImmediatePropagation();
         
-        // Remove focus from any active element to hide the iPad focus ring
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
         
         if (e.key === 'Tab') {
           if (!e.shiftKey) {
-            addPoint('A');
+            addPoint('A', e);
           } else {
-            addPoint('B');
+            addPoint('B', e);
           }
         } else if (e.key === 'ArrowRight') {
-          addPoint('A');
+          addPoint('A', e);
         } else if (e.key === 'ArrowLeft') {
-          addPoint('B');
+          addPoint('B', e);
         }
       }
     };
 
     const handleMouseDown = (e: MouseEvent) => {
+      // Only handle button 0 (left click)
       if (e.button !== 0) return;
       
       isLongPressRef.current = false;
@@ -390,7 +424,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
       
       pressTimerRef.current = setTimeout(() => {
         isLongPressRef.current = true;
-        undo();
+        undo(e);
         if (window.navigator && window.navigator.vibrate) {
           window.navigator.vibrate(100);
         }
@@ -411,13 +445,11 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         return;
       }
 
-      // Check if clicking on a specific team scoring area
       const target = e.target as HTMLElement;
       const teamArea = target.closest('[data-team]');
       
       if (teamArea) {
         const team = teamArea.getAttribute('data-team') as 'A' | 'B';
-        // Directional scoring: add point instantly and clear generic click counts
         addPoint(team, e);
         clickCountRef.current = 0;
         if (clickTimerRef.current) {
@@ -427,15 +459,15 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         return;
       }
 
-      // Generic Remote/Background Logic (Single -> A, Double -> B)
+      // Generic Background/Remote Logic
       clickCountRef.current += 1;
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
 
       clickTimerRef.current = setTimeout(() => {
         if (clickCountRef.current === 1) {
-          addPoint('A');
+          addPoint('A', e);
         } else if (clickCountRef.current >= 2) {
-          addPoint('B');
+          addPoint('B', e);
         }
         clickCountRef.current = 0;
         clickTimerRef.current = null;
@@ -453,7 +485,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
       if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
     };
-  }, [isFinished, liveMatch.id]);
+  }, [isFinished, liveMatch.id, tournament.isCloud, tournament.scoring, tournament.maxPoints]); // Added relevant deps to prevent stale closures
 
   const getPlayer = (id: string) => tournament.players.find(p => p.id === id);
   
