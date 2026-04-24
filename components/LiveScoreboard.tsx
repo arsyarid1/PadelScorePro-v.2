@@ -181,14 +181,9 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
   };
 
   const addPoint = (team: 'A' | 'B', e?: React.MouseEvent | KeyboardEvent | MouseEvent) => {
+    // Stop propagation if it's a DOM event
     if (e && 'stopPropagation' in e) e.stopPropagation();
     
-    const now = Date.now();
-    if (e && 'type' in e && e.type === 'click') {
-      if (now - lastClickTime.current < 500) return;
-      lastClickTime.current = now;
-    }
-
     if (isFinished) return;
 
     if (tournament.isCloud) {
@@ -196,77 +191,77 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
       return;
     }
 
-    setMatch(prev => {
-      // 1. Save history
-      setHistory(h => [...h, JSON.parse(JSON.stringify(prev))]);
-      
-      // 2. Visual feedback
-      setFlash({ team, color: 'green' });
-      setTimeout(() => setFlash({ team: null, color: 'green' }), 300);
+    // Use current state to calculation next state
+    // history should record the state BEFORE the point was added
+    setHistory(h => [...h, JSON.parse(JSON.stringify(match))]);
+    
+    // Calculate next state
+    const next = JSON.parse(JSON.stringify(match)) as MatchState;
+    const teamKey = team === 'A' ? 'teamA' : 'teamB';
+    const oppKey = team === 'A' ? 'teamB' : 'teamA';
+    let nextFinished = false;
 
-      // 3. Calculate next state
-      const next = JSON.parse(JSON.stringify(prev)) as MatchState;
-      const teamKey = team === 'A' ? 'teamA' : 'teamB';
-      const oppKey = team === 'A' ? 'teamB' : 'teamA';
-      let nextFinished = false;
-
-      if (isRally) {
+    if (isRally) {
+      next[teamKey].score += 1;
+      next[teamKey].totalGames += 1;
+      if (next.teamA.score + next.teamB.score >= tournament.maxPoints) {
+        nextFinished = true;
+      }
+    } else {
+      if (next.isTieBreak) {
         next[teamKey].score += 1;
-        next[teamKey].totalGames += 1;
-        if (next.teamA.score + next.teamB.score >= tournament.maxPoints) {
-          nextFinished = true;
+        if (next[teamKey].score >= 7 && (next[teamKey].score - next[oppKey].score) >= 2) {
+          next[teamKey].games += 1;
+          next[teamKey].totalGames += 1;
+          nextFinished = checkWinner(next, teamKey, oppKey);
         }
       } else {
-        if (next.isTieBreak) {
+        if (next[teamKey].score < 3) {
           next[teamKey].score += 1;
-          if (next[teamKey].score >= 7 && (next[teamKey].score - next[oppKey].score) >= 2) {
-            next[teamKey].games += 1;
-            next[teamKey].totalGames += 1;
-            nextFinished = checkWinner(next, teamKey, oppKey);
-          }
-        } else {
-          if (next[teamKey].score < 3) {
-            next[teamKey].score += 1;
-          } else if (next[teamKey].score === 3) {
-            if (next[oppKey].score === 3) {
-              if (tournament.tennisRule === 'Golden Point') {
-                next[teamKey].games += 1;
-                next[teamKey].totalGames += 1;
-                nextFinished = checkWinner(next, teamKey, oppKey);
-              } else {
-                next[teamKey].score = 'Ad';
-              }
-            } else if (next[oppKey].score === 'Ad') {
-              next[oppKey].score = 3; 
-            } else {
+        } else if (next[teamKey].score === 3) {
+          if (next[oppKey].score === 3) {
+            if (tournament.tennisRule === 'Golden Point') {
               next[teamKey].games += 1;
               next[teamKey].totalGames += 1;
               nextFinished = checkWinner(next, teamKey, oppKey);
+            } else {
+              next[teamKey].score = 'Ad';
             }
-          } else if (next[teamKey].score === 'Ad') {
+          } else if (next[oppKey].score === 'Ad') {
+            next[oppKey].score = 3; 
+          } else {
             next[teamKey].games += 1;
             next[teamKey].totalGames += 1;
             nextFinished = checkWinner(next, teamKey, oppKey);
           }
+        } else if (next[teamKey].score === 'Ad') {
+          next[teamKey].games += 1;
+          next[teamKey].totalGames += 1;
+          nextFinished = checkWinner(next, teamKey, oppKey);
         }
       }
+    }
 
-      if (nextFinished) setIsFinished(true);
-      
-      // 5. Update parent state
-      onUpdateScore(
-        liveMatch.id, 
-        next.teamA.score, 
-        next.teamB.score, 
-        nextFinished ? 'finished' : 'live',
-        next.teamA.totalGames,
-        next.teamB.totalGames,
-        next.teamA.sets,
-        next.teamB.sets
-      );
+    if (nextFinished) setIsFinished(true);
+    
+    // Apply state
+    setMatch(next);
+    
+    // Visual feedback
+    setFlash({ team, color: 'green' });
+    setTimeout(() => setFlash({ team: null, color: 'green' }), 300);
 
-      return next;
-    });
+    // Update parent state
+    onUpdateScore(
+      liveMatch.id, 
+      next.teamA.score, 
+      next.teamB.score, 
+      nextFinished ? 'finished' : 'live',
+      next.teamA.totalGames,
+      next.teamB.totalGames,
+      next.teamA.sets,
+      next.teamB.sets
+    );
   };
 
   const checkWinner = (next: MatchState, teamKey: 'teamA' | 'teamB', oppKey: 'teamA' | 'teamB'): boolean => {
@@ -331,27 +326,24 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
   const undo = (e?: React.MouseEvent | KeyboardEvent | MouseEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
     
-    setHistory(prevHistory => {
-      if (prevHistory.length === 0) return prevHistory;
-      
-      const lastState = prevHistory[prevHistory.length - 1];
-      setMatch(lastState);
-      setIsFinished(false);
+    if (history.length === 0) return;
+    
+    const lastState = history[history.length - 1];
+    setMatch(lastState);
+    setHistory(prev => prev.slice(0, -1));
+    setIsFinished(false);
 
-      // Update parent after undo
-      onUpdateScore(
-        liveMatch.id, 
-        lastState.teamA.score, 
-        lastState.teamB.score, 
-        'live',
-        lastState.teamA.totalGames,
-        lastState.teamB.totalGames,
-        lastState.teamA.sets,
-        lastState.teamB.sets
-      );
-
-      return prevHistory.slice(0, -1);
-    });
+    // Update parent after undo
+    onUpdateScore(
+      liveMatch.id, 
+      lastState.teamA.score, 
+      lastState.teamB.score, 
+      'live',
+      lastState.teamA.totalGames,
+      lastState.teamB.totalGames,
+      lastState.teamA.sets,
+      lastState.teamB.sets
+    );
   };
 
   const clickCountRef = React.useRef<number>(0);
@@ -419,6 +411,23 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         return;
       }
 
+      // Check if clicking on a specific team scoring area
+      const target = e.target as HTMLElement;
+      const teamArea = target.closest('[data-team]');
+      
+      if (teamArea) {
+        const team = teamArea.getAttribute('data-team') as 'A' | 'B';
+        // Directional scoring: add point instantly and clear generic click counts
+        addPoint(team, e);
+        clickCountRef.current = 0;
+        if (clickTimerRef.current) {
+          clearTimeout(clickTimerRef.current);
+          clickTimerRef.current = null;
+        }
+        return;
+      }
+
+      // Generic Remote/Background Logic (Single -> A, Double -> B)
       clickCountRef.current += 1;
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
 
@@ -533,7 +542,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
 
         {/* Team A Section */}
         <div 
-          onClick={(e) => addPoint('A', e)}
+          data-team="A"
           className={`flex-1 flex flex-col p-4 md:p-6 gap-2 md:gap-6 border-b md:border-b-0 md:border-r border-primary/10 transition-all duration-300 relative
             ${!isFinished ? 'cursor-pointer active:bg-white/[0.05] hover:bg-white/[0.02]' : 'pointer-events-none'}
             ${flash.team === 'A' ? 'bg-green-500/20' : ''}`}
@@ -591,7 +600,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
 
         {/* Team B Section */}
         <div 
-          onClick={(e) => addPoint('B', e)}
+          data-team="B"
           className={`flex-1 flex flex-col p-4 md:p-6 gap-2 md:gap-6 transition-all duration-300 relative
             ${!isFinished ? 'cursor-pointer active:bg-white/[0.05] hover:bg-white/[0.02]' : 'pointer-events-none'}
             ${flash.team === 'B' ? 'bg-green-500/20' : ''}`}
