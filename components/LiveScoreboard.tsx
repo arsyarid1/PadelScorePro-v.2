@@ -380,112 +380,39 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
     });
   };
 
-  const clickCountRef = React.useRef<number>(0);
-  const clickTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const pressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const isLongPressRef = React.useRef<boolean>(false);
-
   useEffect(() => {
     if (isFinished) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
       
-      const navKeys = ['Tab', 'ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Enter', ' '];
-      if (navKeys.includes(e.key)) {
+      const key = e.key.toLowerCase();
+      if (['a', 'b', 'u'].includes(key)) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         
+        // Remove focus to prevent focus rings or interference
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
-        
-        if (e.key === 'Tab') {
-          if (!e.shiftKey) {
-            addPoint('A', e);
-          } else {
-            addPoint('B', e);
-          }
-        } else if (e.key === 'ArrowRight') {
+
+        if (key === 'a') {
           addPoint('A', e);
-        } else if (e.key === 'ArrowLeft') {
+        } else if (key === 'b') {
           addPoint('B', e);
+        } else if (key === 'u') {
+          undo(e);
         }
       }
-    };
-
-    const handleMouseDown = (e: MouseEvent) => {
-      // Only handle button 0 (left click)
-      if (e.button !== 0) return;
-      
-      isLongPressRef.current = false;
-      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
-      
-      pressTimerRef.current = setTimeout(() => {
-        isLongPressRef.current = true;
-        undo(e);
-        if (window.navigator && window.navigator.vibrate) {
-          window.navigator.vibrate(100);
-        }
-      }, 1000);
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-
-      if (pressTimerRef.current) {
-        clearTimeout(pressTimerRef.current);
-        pressTimerRef.current = null;
-      }
-
-      if (isLongPressRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      const target = e.target as HTMLElement;
-      const teamArea = target.closest('[data-team]');
-      
-      if (teamArea) {
-        const team = teamArea.getAttribute('data-team') as 'A' | 'B';
-        addPoint(team, e);
-        clickCountRef.current = 0;
-        if (clickTimerRef.current) {
-          clearTimeout(clickTimerRef.current);
-          clickTimerRef.current = null;
-        }
-        return;
-      }
-
-      // Generic Background/Remote Logic
-      clickCountRef.current += 1;
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-
-      clickTimerRef.current = setTimeout(() => {
-        if (clickCountRef.current === 1) {
-          addPoint('A', e);
-        } else if (clickCountRef.current >= 2) {
-          addPoint('B', e);
-        }
-        clickCountRef.current = 0;
-        clickTimerRef.current = null;
-      }, 300);
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
-    window.addEventListener('mousedown', handleMouseDown, { capture: true });
-    window.addEventListener('mouseup', handleMouseUp, { capture: true });
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
-      window.removeEventListener('mousedown', handleMouseDown, { capture: true });
-      window.removeEventListener('mouseup', handleMouseUp, { capture: true });
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
     };
-  }, [isFinished, liveMatch.id, tournament.isCloud, tournament.scoring, tournament.maxPoints]); // Added relevant deps to prevent stale closures
+  }, [isFinished, liveMatch.id, tournament.isCloud, tournament.scoring, tournament.maxPoints]);
+ // Added relevant deps to prevent stale closures
 
   const getPlayer = (id: string) => tournament.players.find(p => p.id === id);
   
@@ -575,6 +502,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         {/* Team A Section */}
         <div 
           data-team="A"
+          onClick={(e) => addPoint('A', e)}
           className={`flex-1 flex flex-col p-4 md:p-6 gap-2 md:gap-6 border-b md:border-b-0 md:border-r border-primary/10 transition-all duration-300 relative
             ${!isFinished ? 'cursor-pointer active:bg-white/[0.05] hover:bg-white/[0.02]' : 'pointer-events-none'}
             ${flash.team === 'A' ? 'bg-green-500/20' : ''}`}
@@ -633,6 +561,7 @@ const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ tournament, onUpdateSco
         {/* Team B Section */}
         <div 
           data-team="B"
+          onClick={(e) => addPoint('B', e)}
           className={`flex-1 flex flex-col p-4 md:p-6 gap-2 md:gap-6 transition-all duration-300 relative
             ${!isFinished ? 'cursor-pointer active:bg-white/[0.05] hover:bg-white/[0.02]' : 'pointer-events-none'}
             ${flash.team === 'B' ? 'bg-green-500/20' : ''}`}
