@@ -266,7 +266,7 @@ const ScoreEntryModal: React.FC<{
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Team A</label>
-                    <p className="text-[13px] font-semibold text-slate-300 line-clamp-1">{teamAPlayers}</p>
+                    <p className="text-[14px] font-semibold text-slate-300 line-clamp-1 uppercase">{teamAPlayers}</p>
                   </div>
                   <select 
                     value={scoreA}
@@ -279,7 +279,7 @@ const ScoreEntryModal: React.FC<{
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Team B</label>
-                    <p className="text-[13px] font-semibold text-slate-300 line-clamp-1">{teamBPlayers}</p>
+                    <p className="text-[14px] font-semibold text-slate-300 line-clamp-1 uppercase">{teamBPlayers}</p>
                   </div>
                   <select 
                     value={scoreB}
