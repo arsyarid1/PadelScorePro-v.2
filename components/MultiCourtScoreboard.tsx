@@ -71,7 +71,7 @@ const ScoreEntryModal: React.FC<{
 }> = ({ match, tournament, onClose, onConfirm }) => {
   const isRally = tournament.scoring === 'Rally Points';
   const isCustom = tournament.scoring === 'Custom Match';
-  const [targetScore, setTargetScore] = useState(tournament.maxPoints || 21);
+  const targetScore = tournament.maxPoints || 21;
   const [scoreA, setScoreA] = useState<any>(match.teamA.score || 0);
   const [scoreB, setScoreB] = useState<any>(match.teamB.score || 0);
   
@@ -83,6 +83,10 @@ const ScoreEntryModal: React.FC<{
   const [totalGamesB, setTotalGamesB] = useState(match.teamB.games || 0);
   const [isTieBreak, setIsTieBreak] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+
+  const getPlayerName = (id: string) => tournament.players.find(p => p.id === id)?.name || 'Unknown';
+  const teamAPlayers = match.teamA.playerIds.map(getPlayerName).join(' / ');
+  const teamBPlayers = match.teamB.playerIds.map(getPlayerName).join(' / ');
 
   const tennisPoints = ['0', '15', '30', '40', 'Ad'];
 
@@ -253,22 +257,17 @@ const ScoreEntryModal: React.FC<{
             <div className="space-y-8 md:space-y-12">
               <div className="flex flex-col gap-3">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Target Score</label>
-                <select 
-                  value={targetScore}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    setTargetScore(val);
-                    setScoreB(Math.max(0, val - scoreA));
-                  }}
-                  className="w-full h-12 md:h-14 bg-background-dark border-white/10 rounded-xl md:rounded-2xl px-4 md:px-6 text-white font-bold text-sm"
-                >
-                  {[11, 15, 21, 31, 41].map(v => <option key={v} value={v}>{v} Points</option>)}
-                </select>
+                <div className="w-full h-12 md:h-14 bg-background-dark/50 border border-white/5 rounded-xl md:rounded-2xl px-4 md:px-6 flex items-center text-slate-400 font-bold text-sm select-none opacity-70">
+                  {targetScore} Points (Locked)
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-6 md:gap-12">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Team A</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Team A</label>
+                    <p className="text-[13px] font-semibold text-slate-300 line-clamp-1">{teamAPlayers}</p>
+                  </div>
                   <select 
                     value={scoreA}
                     onChange={(e) => handleRallyChange('A', parseInt(e.target.value))}
@@ -278,7 +277,10 @@ const ScoreEntryModal: React.FC<{
                   </select>
                 </div>
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Team B</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Team B</label>
+                    <p className="text-[13px] font-semibold text-slate-300 line-clamp-1">{teamBPlayers}</p>
+                  </div>
                   <select 
                     value={scoreB}
                     onChange={(e) => handleRallyChange('B', parseInt(e.target.value))}
@@ -293,7 +295,9 @@ const ScoreEntryModal: React.FC<{
             <div className="space-y-6 md:space-y-8">
               <div className="grid grid-cols-2 gap-3 md:gap-4">
                 <div className="bg-background-dark p-4 md:p-6 rounded-2xl md:rounded-3xl border border-white/5 flex flex-col items-center">
-                  <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase mb-2 md:mb-4">
+                  <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase">Team A</span>
+                  <p className="text-[13px] font-semibold text-slate-300 mb-2 md:mb-4 text-center line-clamp-1">{teamAPlayers}</p>
+                  <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase mb-2">
                     {tournament.scoring === 'Tournament Pro' ? 'Sets Won' : 'Games Won'}
                   </span>
                   <span className="text-4xl md:text-6xl font-black text-white">
@@ -301,7 +305,9 @@ const ScoreEntryModal: React.FC<{
                   </span>
                 </div>
                 <div className="bg-background-dark p-4 md:p-6 rounded-2xl md:rounded-3xl border border-white/5 flex flex-col items-center">
-                  <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase mb-2 md:mb-4">
+                  <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase">Team B</span>
+                  <p className="text-[13px] font-semibold text-slate-300 mb-2 md:mb-4 text-center line-clamp-1">{teamBPlayers}</p>
+                  <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase mb-2">
                     {tournament.scoring === 'Tournament Pro' ? 'Sets Won' : 'Games Won'}
                   </span>
                   <span className="text-4xl md:text-6xl font-black text-white">
